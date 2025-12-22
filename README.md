@@ -2,17 +2,11 @@ This Toki Clock uses the traditional Japanese temporal hours system. Daytime bet
 
 This system of naturally-sourced timekeeping required complicated mechanical clocks, however in the digital age, anyone can make their own Toki clock using the flexibility provided by software.
 
-| Column 1      | Column 2      |
-| ------------- | ------------- |
-| Cell 1, Row 1 | Cell 2, Row 1 |
-| Cell 1, Row 2 | Cell 1, Row 2 |
-
 Toki from sunrise:
 
-| Zodiac | Zodiac | Japanese | Strikes | Solar time |
-|  sign  | symbol |  numeral |         |            |
+|  Sign  | Symbol |  Numeral | Strikes | Solar time |
 | ------ | ------ | -------- | ------- | ---------- |
-| Rabbit |   卯	  |     六    |   6	    |  sunrise   |
+| Rabbit |  卯	  |     六    |   6	    |  sunrise   |
 | Dragon |	辰	  |     五    |	  5     |  morning   |
 | Snake	 |  巳    |     四    |   4     |  morning   |
 | Horse  |	午    |     九    |   9     |  noon      |
@@ -21,10 +15,9 @@ Toki from sunrise:
 
 Toki from sunset
 
-| Zodiac | Zodiac | Japanese | Strikes | Solar time |
-|  sign  | symbol |  numeral |         |            |
+|  Sign  | Symbol |  Numeral | Strikes | Solar time |
 | ------ | ------ | -------- | ------- | ---------- |
-Rooster	酉	六	6	sunset
+| Rooster|	酉    |   六	|    |  6 |	sunset |
 Dog	戌	五	5	evening
 Pig	亥	四	4
 Rat	子	九	9	midnight
