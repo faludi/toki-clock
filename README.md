@@ -7,19 +7,19 @@ Toki from sunrise:
 |  Sign  | Symbol |  Numeral | Strikes | Solar time |
 | ------ | ------ | -------- | ------- | ---------- |
 | Rabbit |  卯	  |     六    |   6	    |  sunrise   |
-| Dragon |	辰	  |     五    |	  5     |  morning   |
-| Snake	 |  巳    |     四    |   4     |  morning   |
+| Dragon |	辰	  |     五    |	  5     |  early morning   |
+| Snake	 |  巳    |     四    |   4     |  late morning   |
 | Horse  |	午    |     九    |   9     |  noon      |
-| Goat   |  未    |     八    |	  8     | afternoon  |
-| Monkey |  申    |     七    |   7     | afternoon  |
+| Goat   |  未    |     八    |	  8     | early afternoon  |
+| Monkey |  申    |     七    |   7     | late afternoon  |
 
 Toki from sunset:
 
 |  Sign  | Symbol |  Numeral | Strikes | Solar time |
 | ------ | ------ | -------- | ------- | ---------- |
 | Rooster|	酉    |   六	|      6 |	sunset |
-| Dog	| 戌	| 五	| 5	| evening |
-| Pig	| 亥	| 四	| 4 | evening |
+| Dog	| 戌	| 五	| 5	| early evening |
+| Pig	| 亥	| 四	| 4 | late evening |
 | Rat	| 子	| 九	| 9	| midnight |
-| Ox	| 丑	| 八	| 8	| before dawn |
-| Tiger	| 寅	| 七	| 7 | before dawn |
+| Ox	| 丑	| 八	| 8	| early night |
+| Tiger	| 寅	| 七	| 7 | late night |
