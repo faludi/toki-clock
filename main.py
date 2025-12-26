@@ -54,7 +54,49 @@ def blink_led(times, interval=0.2):
         LED.off()
         time.sleep(interval)
 
-def fetch_weather_data():
+def parse_iso8601(timestamp):
+    if 'T' not in timestamp:
+        # Extract date only
+        year, month, day = timestamp.split('-')
+    else:
+        # Split the timestamp into date and time
+        date_str, time_str = timestamp.split('T')
+        # Extract year, month, day
+        year, month, day = date_str.split('-')
+        if time_str.count(':') == 1:
+            # Time only has hours and minutes
+            hour, minute = time_str.split(':')
+            second = '0'
+        else:
+            # Extract hours, minutes, seconds
+            hour, minute, second = time_str.split(':')
+            second = second.split('Z')[0]  # Remove 'Z' if present
+    # Combine into final time format
+    if 'T' in timestamp:
+        tupple_time = (int(year), int(month), int(day), int(hour), int(minute), int(second), int('0'), int('0'))
+    else:
+        tupple_time = (int(year), int(month), int(day), int('0'), int('0'), int('0'), int('0'), int('0'))
+    return(tupple_time)
+
+# def parse_datetime(timestamp):
+#     # Split the timestamp into date and time
+#     date_str, time_str = timestamp.split('T')
+#     # Extract year, month, day
+#     year, month, day = date_str.split('-')
+#     # Extract hours and minutes
+#     hour, minute = time_str.split(':')
+#     # Combine into final time format
+#     formatted_time = f"{month}/{day}/{year} {hour:2}:{minute:2} UTC"
+#     return(formatted_time)
+
+# def parse_date(timestamp):
+#     # Extract year, month, day
+#     year, month, day = timestamp.split('-')
+#     # Combine into final time format
+#     formatted_date = f"{month}/{day}/{year} UTC"
+#     return(formatted_date)
+
+def fetch_solar_data():
     try:
         # Make GET request
         response = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&daily=sunrise,sunset&forecast_days=1", timeout=10)
@@ -62,13 +104,13 @@ def fetch_weather_data():
         response_code = response.status_code
         # Get response content
         response_content = response.content
-        weather = response.json()
+        solar_data = response.json()
         # Print results
         print('Response code: ', response_code)
-        # print('Response content:', response_content)
-        return weather
+        print('Response content:', response_content)
+        return solar_data
     except Exception as e:
-        print('Error fetching weather data:', e)
+        print('Error fetching solar data:', e)
         return None
     
 def open_config():
@@ -167,7 +209,6 @@ async def update_location():
 
 
 def main():
-    global microseasons,printer
     connection = False
     connection_timeout = 10
     blink_led(3, 0.1)
@@ -186,11 +227,38 @@ def main():
     except:
         print("Failed to update time via NTP.")
     while True:
-            blink_led(2, 0.1)
-            if not connection:
-                break # exit if no connection
-            show_time()
-            time.sleep(10)  # main loop delay
+        blink_led(2, 0.1)
+        if not connection:
+            break # exit if no connection
+        show_time()
+        time.sleep(10)  # main loop delay
+        # try:
+        # Fetch and display weather data
+        solar = fetch_solar_data()
+        if solar is not None:
+            # print('Solar Data:', solar)
+            sunrise = solar['daily']['sunrise'][0]
+            sunset = solar['daily']['sunset'][0]
+            timestamp = solar['daily']['time'][0]
+            sunrise_epoch = time.mktime(parse_iso8601(sunrise))
+            sunset_epoch = time.mktime(parse_iso8601(sunset))
+            print('Sunrise:', parse_iso8601(sunrise))
+            print('Sunrise epoch:', sunrise_epoch)
+            print('Sunset:', parse_iso8601(sunset))
+            print('Sunset epoch:', sunset_epoch)
+            solar_noon = (time.mktime(parse_iso8601(sunrise)) + time.mktime(parse_iso8601(sunset))) // 2
+            print('Solar noon:', time.localtime(solar_noon))
+            print('Date:', parse_iso8601(timestamp))
+            if time.time() < sunrise_epoch:
+                print("It's before sunrise.")
+            elif time.time() > sunset_epoch:
+                print("It's after sunset.")
+
+        else:
+            print('No solar data available')
+        # except Exception as e:
+        #     print('Error parsing solar data:', e)
+        time.sleep(30)
 
 if __name__ == "__main__":
      main()
