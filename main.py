@@ -8,7 +8,7 @@ import requests
 import secrets  # separate file that contains your WiFi credentials
 import stepper
 
-version = "1.0.2"
+version = "1.0.3"
 print("Toki Clock - Version:", version)
 
 # Wi-Fi credentials
@@ -16,6 +16,7 @@ ssid = secrets.WIFI_SSID  # your SSID name stored in secrets.py
 password = secrets.WIFI_PASSWORD  # your WiFi password stored in secrets.py
 
 LED = Pin("LED", Pin.OUT)      # digital output for status LED
+button = Pin(15, Pin.IN, Pin.PULL_UP)  # onboard button
 
 # Define stepper motor pins
 IN1 = 28
@@ -340,7 +341,24 @@ def main():
         # Move stepper motor to Toki angle
         stepper_motor.step_until_angle(toki_angle)
         print('Sleeping for 60 seconds before next update...')
-        time.sleep(60)
+        start_time = time.time()
+        while (time.time() - start_time) < 60:
+            if button.value() == 0:
+                print('Button pressed, returning to angle 0')
+                stepper_motor.step_until_angle(0)
+                time.sleep(1)
+                print('Entering manual adjustment mode. Hold button to rotate clockwise.')
+                while button.value() == 0:
+                    # Move stepper 1 degree at a time while button is held
+                    stepper_motor.step(34)
+                    time.sleep(0.1)
+                print('Exiting manual adjustment mode.')
+                stepper_motor.reset()
+                time.sleep(1)
+                print(f"Toki Angle: {toki_angle:.2f} degrees, Toki Hour: {toki_hour}")
+                # Move stepper motor to Toki angle
+                stepper_motor.step_until_angle(toki_angle)
+        
 
 if __name__ == "__main__":
     try:
