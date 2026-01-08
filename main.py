@@ -346,7 +346,7 @@ def main():
             if button.value() == 0:
                 print('Button pressed, returning to angle 0')
                 stepper_motor.step_until_angle(0)
-                time.sleep(1)
+                time.sleep(2)
                 print('Entering manual adjustment mode. Hold button to rotate clockwise.')
                 while button.value() == 0:
                     # Move stepper 1 degree at a time while button is held
@@ -358,6 +358,7 @@ def main():
                 print(f"Toki Angle: {toki_angle:.2f} degrees, Toki Hour: {toki_hour}")
                 # Move stepper motor to Toki angle
                 stepper_motor.step_until_angle(toki_angle)
+            time.sleep(0.1)
         
 
 if __name__ == "__main__":
