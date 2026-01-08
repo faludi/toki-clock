@@ -1,12 +1,14 @@
 import time
+import math
 from machine import Pin, reset
 import network
 import ntptime
 import json
 import requests
 import secrets  # separate file that contains your WiFi credentials
+import stepper
 
-version = "1.0.0"
+version = "1.0.2"
 print("Toki Clock - Version:", version)
 
 # Wi-Fi credentials
@@ -14,6 +16,18 @@ ssid = secrets.WIFI_SSID  # your SSID name stored in secrets.py
 password = secrets.WIFI_PASSWORD  # your WiFi password stored in secrets.py
 
 LED = Pin("LED", Pin.OUT)      # digital output for status LED
+
+# Define stepper motor pins
+IN1 = 28
+IN2 = 27
+IN3 = 26
+IN4 = 22
+
+# Initialize stepper motor
+stepper_motor = stepper.HalfStepMotor.frompins(IN1, IN2, IN3, IN4)
+
+# Set the current position as position 0
+stepper_motor.reset()
 
 address = "350 5th Avenue, New York, NY"
 latitude = 40.7484773
@@ -43,9 +57,8 @@ def connect_to_wifi():
         print('IP address:', network_info[0])
         return True
 
-def show_time():
-    lt = time.localtime()
-    print(f"UTC time: {lt[0]:04d}-{lt[1]:02d}-{lt[2]:02d} {lt[3]:02d}:{lt[4]:02d}:{lt[5]:02d}")
+def formatted_time(lt):
+    return(f"UTC: {lt[0]:04d}-{lt[1]:02d}-{lt[2]:02d} {lt[3]:02d}:{lt[4]:02d}:{lt[5]:02d}")
 
 def blink_led(times, interval=0.2):
     for _ in range(times):
@@ -99,7 +112,7 @@ def parse_iso8601(timestamp):
 def fetch_solar_data():
     try:
         # Make GET request
-        response = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&daily=sunrise,sunset&forecast_days=1", timeout=10)
+        response = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&daily=sunrise,sunset&past_days=1&forecast_days=2", timeout=10)
         # Get response code
         response_code = response.status_code
         # Get response content
@@ -107,11 +120,40 @@ def fetch_solar_data():
         solar_data = response.json()
         # Print results
         print('Response code: ', response_code)
-        print('Response content:', response_content)
+        # print('Response content:', response_content)
         return solar_data
     except Exception as e:
         print('Error fetching solar data:', e)
         return None
+    
+def update_solar_data():
+    global prior_sunset, sunrise, sunset, next_sunrise, past_sunset_epoch, sunrise_epoch, sunset_epoch, next_sunrise_epoch
+    try:
+        solar = fetch_solar_data()
+        if solar is not None:
+            # print('Solar Data:', solar)
+            prior_sunset = solar['daily']['sunset'][0]
+            sunrise = solar['daily']['sunrise'][1]
+            sunset = solar['daily']['sunset'][1]
+            next_sunrise = solar['daily']['sunrise'][2]
+            timestamp = solar['daily']['time'][1]
+            past_sunset_epoch = time.mktime(parse_iso8601(prior_sunset))
+            sunrise_epoch = time.mktime(parse_iso8601(sunrise))
+            sunset_epoch = time.mktime(parse_iso8601(sunset))
+            next_sunrise_epoch = time.mktime(parse_iso8601(next_sunrise))
+            print('Prior sunset:', parse_iso8601(prior_sunset))
+            print('Sunrise:', parse_iso8601(sunrise))
+            print('Sunset:', parse_iso8601(sunset))
+            print('Next sunrise:', parse_iso8601(next_sunrise))
+            print('Prior sunset epoch:', past_sunset_epoch)
+            print('Sunrise epoch:', sunrise_epoch)
+            print('Sunset epoch:', sunset_epoch)
+            print('Next sunrise epoch:', next_sunrise_epoch)
+            print('Date:', parse_iso8601(timestamp))
+        else:
+            print('No solar data available')
+    except Exception as e:
+        print('Error parsing solar data:', e)
     
 def open_config():
     try:
@@ -207,8 +249,57 @@ async def update_location():
     else:
         print("Using default coordinates")
 
+def calculate_toki(prior_sunset_epoch, sunrise_epoch, sunset_epoch, next_sunrise_epoch, current_epoch):
+    if current_epoch < sunrise_epoch:
+        # Before sunrise
+        print('Before sunrise')
+        toki_percent = (current_epoch - prior_sunset_epoch) / (sunrise_epoch - prior_sunset_epoch)
+        toki_angle = 90 + toki_percent * 180
+    elif current_epoch < sunset_epoch:
+        # Between sunrise and sunset
+        print('Between sunrise and sunset')
+        toki_percent = (current_epoch - sunrise_epoch) / (sunset_epoch - sunrise_epoch)
+        toki_angle = 270 + toki_percent * 180
+    else:
+        # After sunset
+        print('After sunset')
+        toki_percent = (current_epoch - sunset_epoch) / (next_sunrise_epoch - sunset_epoch)
+        toki_angle = 90 + toki_percent * 180
+    print('Toki percent:', toki_percent)
+    toki_hour = math.ceil(toki_percent * 6)
+    return toki_angle % 360, toki_hour
+
+def stepper_test():
+    pass
+    #     print('500 clockwise steps')
+    #     #Move 500 steps in clockwise direction
+    #     stepper_motor.step(500)
+    #     sleep(0.5) # stop for a while
+        
+    #     print('500 counterclockwise steps')
+    #     # Move 500 steps in counterclockwise direction
+    #     stepper_motor.step(-500)
+    #     sleep(0.5) # stop for a while
+        
+    #     print('Go to position 2000')
+    #     # Go to a specific position (in steps)
+    #     stepper_motor.step_until(2000)
+    #     sleep(0.5) # stop for a while
+        
+    #     print('Forcce direction to counterclockwise and go to position 2000')
+    #     # Force a direction using the dir paramter
+    #     stepper_motor.step_until(2000, dir=-1)
+    #     sleep(0.5) # stop for a while        
+        
+    #     print('Go to angle 359')
+    #     # Go to a specific position (angle, maximum is 359, otherwise it will spin indefinetely)
+    #     stepper_motor.step_until_angle(359)
+    #     sleep(0.5) # stop for a while
+
+next_ntp_sync = next_solar_sync = 0
 
 def main():
+    global next_ntp_sync, next_solar_sync, address, latitude, longitude, settings_file_url
     connection = False
     connection_timeout = 10
     blink_led(3, 0.1)
@@ -218,47 +309,48 @@ def main():
             if connection_timeout == 0:
                 print('Could not connect to Wi-Fi, exiting')
                 reset()
-    try:
-        ntptime.settime()
-        print(f"System time updated to {time.time()} via NTP.")
-        # For testing, you can hard-code a date: (year, month, day, weekday, hour, minute, second, millisecond)
-        # RTC().datetime((2026, 11, 7, 2, 20, 31, 0, 0))
-        # print(f"System time updated to {time.time()} hard-coded.")
-    except:
-        print("Failed to update time via NTP.")
     while True:
         blink_led(2, 0.1)
         if not connection:
             break # exit if no connection
-        show_time()
-        time.sleep(10)  # main loop delay
-        # try:
-        # Fetch and display weather data
-        solar = fetch_solar_data()
-        if solar is not None:
-            # print('Solar Data:', solar)
-            sunrise = solar['daily']['sunrise'][0]
-            sunset = solar['daily']['sunset'][0]
-            timestamp = solar['daily']['time'][0]
-            sunrise_epoch = time.mktime(parse_iso8601(sunrise))
-            sunset_epoch = time.mktime(parse_iso8601(sunset))
-            print('Sunrise:', parse_iso8601(sunrise))
-            print('Sunrise epoch:', sunrise_epoch)
-            print('Sunset:', parse_iso8601(sunset))
-            print('Sunset epoch:', sunset_epoch)
-            solar_noon = (time.mktime(parse_iso8601(sunrise)) + time.mktime(parse_iso8601(sunset))) // 2
-            print('Solar noon:', time.localtime(solar_noon))
-            print('Date:', parse_iso8601(timestamp))
-            if time.time() < sunrise_epoch:
-                print("It's before sunrise.")
-            elif time.time() > sunset_epoch:
-                print("It's after sunset.")
-
-        else:
-            print('No solar data available')
-        # except Exception as e:
-        #     print('Error parsing solar data:', e)
-        time.sleep(30)
+        # Sync time via NTP immediately, then every 12 hours
+        if (time.time() >= next_ntp_sync):
+            try:
+                ntptime.settime()
+                print(f"System time updated to {formatted_time(time.localtime())} via NTP.")
+                next_ntp_sync = time.time() + 43200 # update every 12 hours
+            except Exception as e:
+                last_ntp_sync = time.time()
+                next_ntp_sync = time.time() + 600  # try again in 10 minutes
+                print("Failed to update time via NTP.", e)
+        # Fetch solar data immediately, then every 12 hours
+        if (time.time() >= next_solar_sync):
+            try:
+                print('Fetching solar data...')
+                update_solar_data()
+                next_solar_sync = time.time() + 43200  # update every 12 hours
+            except Exception as e:
+                next_solar_sync = time.time() + 600  # try again in 10 minutes
+                print("Failed to update time via NTP.", e)
+        # Calculate Toki angle
+        current_epoch = time.time()
+        print('Current epoch time:', current_epoch)
+        toki_angle, toki_hour = calculate_toki(past_sunset_epoch, sunrise_epoch, sunset_epoch, next_sunrise_epoch, current_epoch)
+        print(f"Toki Angle: {toki_angle:.2f} degrees, Toki Hour: {toki_hour}")
+        # Move stepper motor to Toki angle
+        stepper_motor.step_until_angle(toki_angle)
+        print('Sleeping for 60 seconds before next update...')
+        time.sleep(60)
 
 if __name__ == "__main__":
-     main()
+    try:
+        # Run the main loop
+        main()
+    except Exception as e:
+        print('Error occurred: ', e)
+    except KeyboardInterrupt:
+        print('Returning to angle 0')
+        stepper_motor.step_until_angle(0)
+        print('Program Interrupted by the user')
+
+     
