@@ -8,7 +8,7 @@ import requests
 import secrets  # separate file that contains your WiFi credentials
 import stepper
 
-version = "1.0.3"
+version = "1.0.4"
 print("Toki Clock - Version:", version)
 
 # Wi-Fi credentials
@@ -17,6 +17,7 @@ password = secrets.WIFI_PASSWORD  # your WiFi password stored in secrets.py
 
 LED = Pin("LED", Pin.OUT)      # digital output for status LED
 button = Pin(15, Pin.IN, Pin.PULL_UP)  # onboard button
+stepper_control = Pin(0, Pin.OUT)  # stepper motor control pin
 
 # Define stepper motor pins
 IN1 = 28
@@ -91,24 +92,6 @@ def parse_iso8601(timestamp):
     else:
         tupple_time = (int(year), int(month), int(day), int('0'), int('0'), int('0'), int('0'), int('0'))
     return(tupple_time)
-
-# def parse_datetime(timestamp):
-#     # Split the timestamp into date and time
-#     date_str, time_str = timestamp.split('T')
-#     # Extract year, month, day
-#     year, month, day = date_str.split('-')
-#     # Extract hours and minutes
-#     hour, minute = time_str.split(':')
-#     # Combine into final time format
-#     formatted_time = f"{month}/{day}/{year} {hour:2}:{minute:2} UTC"
-#     return(formatted_time)
-
-# def parse_date(timestamp):
-#     # Extract year, month, day
-#     year, month, day = timestamp.split('-')
-#     # Combine into final time format
-#     formatted_date = f"{month}/{day}/{year} UTC"
-#     return(formatted_date)
 
 def fetch_solar_data():
     try:
@@ -270,6 +253,25 @@ def calculate_toki(prior_sunset_epoch, sunrise_epoch, sunset_epoch, next_sunrise
     toki_hour = math.ceil(toki_percent * 6)
     return toki_angle % 360, toki_hour
 
+def check_button(toki_angle):
+    if button.value() == 0:
+        print('Button pressed, returning to angle 0')
+        stepper_control.on()
+        stepper_motor.step_until_angle(0)
+        time.sleep(2)
+        print('Entering manual adjustment mode. Hold button to rotate clockwise.')
+        while button.value() == 0:
+            # Move stepper 1 degree at a time while button is held
+            stepper_motor.step(34)
+            time.sleep(0.1)
+        print('Exiting manual adjustment mode.')
+        stepper_motor.reset()
+        time.sleep(1)
+        print(f"Toki Angle: {toki_angle:.2f} degrees")
+        # Move stepper motor to Toki angle
+        stepper_motor.step_until_angle(toki_angle)
+        stepper_control.off()
+
 def stepper_test():
     pass
     #     print('500 clockwise steps')
@@ -317,6 +319,7 @@ def main():
         # Sync time via NTP immediately, then every 12 hours
         if (time.time() >= next_ntp_sync):
             try:
+                print('Syncing time via NTP...')
                 ntptime.settime()
                 print(f"System time updated to {formatted_time(time.localtime())} via NTP.")
                 next_ntp_sync = time.time() + 43200 # update every 12 hours
@@ -339,27 +342,14 @@ def main():
         toki_angle, toki_hour = calculate_toki(past_sunset_epoch, sunrise_epoch, sunset_epoch, next_sunrise_epoch, current_epoch)
         print(f"Toki Angle: {toki_angle:.2f} degrees, Toki Hour: {toki_hour}")
         # Move stepper motor to Toki angle
+        stepper_control.on()
         stepper_motor.step_until_angle(toki_angle)
+        stepper_control.off()
         print('Sleeping for 60 seconds before next update...')
         start_time = time.time()
         while (time.time() - start_time) < 60:
-            if button.value() == 0:
-                print('Button pressed, returning to angle 0')
-                stepper_motor.step_until_angle(0)
-                time.sleep(2)
-                print('Entering manual adjustment mode. Hold button to rotate clockwise.')
-                while button.value() == 0:
-                    # Move stepper 1 degree at a time while button is held
-                    stepper_motor.step(34)
-                    time.sleep(0.1)
-                print('Exiting manual adjustment mode.')
-                stepper_motor.reset()
-                time.sleep(1)
-                print(f"Toki Angle: {toki_angle:.2f} degrees, Toki Hour: {toki_hour}")
-                # Move stepper motor to Toki angle
-                stepper_motor.step_until_angle(toki_angle)
+            check_button(toki_angle)
             time.sleep(0.1)
-        
 
 if __name__ == "__main__":
     try:
@@ -369,7 +359,9 @@ if __name__ == "__main__":
         print('Error occurred: ', e)
     except KeyboardInterrupt:
         print('Returning to angle 0')
+        stepper_control.on()
         stepper_motor.step_until_angle(0)
+        stepper_control.off()
         print('Program Interrupted by the user')
 
      
