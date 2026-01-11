@@ -8,7 +8,7 @@ import requests
 import secrets  # separate file that contains your WiFi credentials
 import stepper
 
-version = "1.0.4"
+version = "1.0.6"
 print("Toki Clock - Version:", version)
 
 # Wi-Fi credentials
@@ -48,6 +48,7 @@ def connect_to_wifi():
         connection_timeout -= 1
         print('Waiting for Wi-Fi connection...')
         blink_led(1, 0.1)
+        check_button(0)  # allow button check during wait
         time.sleep(1)
     # Check if connection is successful
     if wlan.status() != 3:
@@ -257,6 +258,7 @@ def check_button(toki_angle):
     if button.value() == 0:
         print('Button pressed, returning to angle 0')
         stepper_control.on()
+        # time.sleep(0.5)
         stepper_motor.step_until_angle(0)
         time.sleep(2)
         print('Entering manual adjustment mode. Hold button to rotate clockwise.')
@@ -270,7 +272,9 @@ def check_button(toki_angle):
         print(f"Toki Angle: {toki_angle:.2f} degrees")
         # Move stepper motor to Toki angle
         stepper_motor.step_until_angle(toki_angle)
+        # time.sleep(0.5)
         stepper_control.off()
+
 
 def stepper_test():
     pass
@@ -299,7 +303,8 @@ def stepper_test():
     #     stepper_motor.step_until_angle(359)
     #     sleep(0.5) # stop for a while
 
-next_ntp_sync = next_solar_sync = 0
+next_ntp_sync, next_solar_sync = 0, 0
+past_sunset_epoch, sunrise_epoch, sunset_epoch, next_sunrise_epoch, current_epoch = 0, 0, 0, 0, 0
 
 def main():
     global next_ntp_sync, next_solar_sync, address, latitude, longitude, settings_file_url
@@ -343,7 +348,9 @@ def main():
         print(f"Toki Angle: {toki_angle:.2f} degrees, Toki Hour: {toki_hour}")
         # Move stepper motor to Toki angle
         stepper_control.on()
+        # time.sleep(0.5)
         stepper_motor.step_until_angle(toki_angle)
+        # time.sleep(0.5)
         stepper_control.off()
         print('Sleeping for 60 seconds before next update...')
         start_time = time.time()
@@ -360,7 +367,9 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print('Returning to angle 0')
         stepper_control.on()
+        # time.sleep(0.5)
         stepper_motor.step_until_angle(0)
+        # time.sleep(0.5)
         stepper_control.off()
         print('Program Interrupted by the user')
 
