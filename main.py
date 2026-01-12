@@ -8,7 +8,7 @@ import requests
 import secrets  # separate file that contains your WiFi credentials
 import stepper
 
-version = "1.0.7"
+version = "1.0.8"
 print("Toki Clock - Version:", version)
 
 # Wi-Fi credentials
@@ -18,7 +18,7 @@ password = secrets.WIFI_PASSWORD  # your WiFi password stored in secrets.py
 LED = Pin("LED", Pin.OUT)      # digital output for status LED
 button = Pin(15, Pin.IN, Pin.PULL_UP)  # onboard button
 stepper_control = Pin(0, Pin.OUT)  # stepper motor control pin
-STEPPER_DELAY = 0.5 # pause to allow power to stabilize
+STEPPER_DELAY = 0.3 # pause to allow power to stabilize
 
 # Define stepper motor pins
 IN1 = 28
@@ -27,7 +27,7 @@ IN3 = 26
 IN4 = 22
 
 # Initialize stepper motor
-stepper_motor = stepper.HalfStepMotor.frompins(IN1, IN2, IN3, IN4)
+stepper_motor = stepper.FullStepMotor.frompins(IN1, IN2, IN3, IN4)
 
 # Set the current position as position 0
 stepper_motor.reset()
@@ -253,7 +253,7 @@ def calculate_toki(prior_sunset_epoch, sunrise_epoch, sunset_epoch, next_sunrise
         toki_angle = 90 + toki_percent * 180
     print('Toki percent:', toki_percent)
     toki_hour = math.ceil(toki_percent * 6)
-    return toki_angle % 360, toki_hour
+    return round(toki_angle % 360), toki_hour
 
 def check_button(toki_angle):
     if button.value() == 0:
@@ -318,6 +318,18 @@ def main():
             if connection_timeout == 0:
                 print('Could not connect to Wi-Fi, exiting')
                 reset()
+    ntp_set = False
+    while not ntp_set:
+        try:
+            print('Syncing time via NTP...')
+            ntptime.settime()
+            print(f"System time updated to {formatted_time(time.localtime())} via NTP.")
+            next_ntp_sync = time.time() + 43200 # update every 12 hours
+            ntp_set = True
+        except Exception as e:
+            print("Failed to update time via NTP.", e)
+            print('Retrying in 10 seconds...')
+            time.sleep(10)
     while True:
         blink_led(2, 0.1)
         if not connection:
