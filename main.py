@@ -8,7 +8,7 @@ import requests
 import secrets  # separate file that contains your WiFi credentials
 import stepper
 
-version = "1.0.6"
+version = "1.0.7"
 print("Toki Clock - Version:", version)
 
 # Wi-Fi credentials
@@ -18,6 +18,7 @@ password = secrets.WIFI_PASSWORD  # your WiFi password stored in secrets.py
 LED = Pin("LED", Pin.OUT)      # digital output for status LED
 button = Pin(15, Pin.IN, Pin.PULL_UP)  # onboard button
 stepper_control = Pin(0, Pin.OUT)  # stepper motor control pin
+STEPPER_DELAY = 0.5 # pause to allow power to stabilize
 
 # Define stepper motor pins
 IN1 = 28
@@ -258,7 +259,7 @@ def check_button(toki_angle):
     if button.value() == 0:
         print('Button pressed, returning to angle 0')
         stepper_control.on()
-        # time.sleep(0.5)
+        time.sleep(STEPPER_DELAY)
         stepper_motor.step_until_angle(0)
         time.sleep(2)
         print('Entering manual adjustment mode. Hold button to rotate clockwise.')
@@ -272,7 +273,7 @@ def check_button(toki_angle):
         print(f"Toki Angle: {toki_angle:.2f} degrees")
         # Move stepper motor to Toki angle
         stepper_motor.step_until_angle(toki_angle)
-        # time.sleep(0.5)
+        time.sleep(STEPPER_DELAY)
         stepper_control.off()
 
 
@@ -348,9 +349,9 @@ def main():
         print(f"Toki Angle: {toki_angle:.2f} degrees, Toki Hour: {toki_hour}")
         # Move stepper motor to Toki angle
         stepper_control.on()
-        # time.sleep(0.5)
+        time.sleep(STEPPER_DELAY)
         stepper_motor.step_until_angle(toki_angle)
-        # time.sleep(0.5)
+        time.sleep(STEPPER_DELAY)
         stepper_control.off()
         print('Sleeping for 60 seconds before next update...')
         start_time = time.time()
@@ -367,9 +368,9 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print('Returning to angle 0')
         stepper_control.on()
-        # time.sleep(0.5)
+        time.sleep(STEPPER_DELAY)
         stepper_motor.step_until_angle(0)
-        # time.sleep(0.5)
+        time.sleep(STEPPER_DELAY)
         stepper_control.off()
         print('Program Interrupted by the user')
 
