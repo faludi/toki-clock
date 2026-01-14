@@ -7,8 +7,11 @@ import json
 import requests
 import secrets  # separate file that contains your WiFi credentials
 import stepper
+from machine import WDT
 
-version = "1.0.8"
+wdt = WDT(timeout=8388)  # enable it with maximum timeout for the Pico
+
+version = "1.0.11"
 print("Toki Clock - Version:", version)
 
 # Wi-Fi credentials
@@ -18,7 +21,7 @@ password = secrets.WIFI_PASSWORD  # your WiFi password stored in secrets.py
 LED = Pin("LED", Pin.OUT)      # digital output for status LED
 button = Pin(15, Pin.IN, Pin.PULL_UP)  # onboard button
 stepper_control = Pin(0, Pin.OUT)  # stepper motor control pin
-STEPPER_DELAY = 0.3 # pause to allow power to stabilize
+STEPPER_DELAY = 0 # pause to allow power to stabilize
 
 # Define stepper motor pins
 IN1 = 28
@@ -26,8 +29,23 @@ IN2 = 27
 IN3 = 26
 IN4 = 22
 
+# Subclass the SingleCoilMotor to add watchdog feeding
+class WDTMotor(stepper.SingleCoilMotor):
+    def step(self, steps):
+        wdt.feed() # feed the watchdog
+        super().step(steps)
+
+    def step_until_angle(self, target_angle):
+        wdt.feed() # feed the watchdog
+        current_angle = (self.pos / self.maxpos) * 360
+        angle_difference = (target_angle - current_angle) % 360
+        if angle_difference > 180:
+            angle_difference -= 360  # take the shorter path
+        steps_needed = int((angle_difference / 360) * self.maxpos)
+        self.step(steps_needed)
+
 # Initialize stepper motor
-stepper_motor = stepper.FullStepMotor.frompins(IN1, IN2, IN3, IN4)
+stepper_motor = WDTMotor.frompins(IN1, IN2, IN3, IN4)
 
 # Set the current position as position 0
 stepper_motor.reset()
@@ -44,6 +62,7 @@ def connect_to_wifi():
     wlan.connect(ssid, password)
     connection_timeout = 10
     while connection_timeout > 0:
+        wdt.feed() # feed the watchdog
         if wlan.status() >= 3:
             break
         connection_timeout -= 1
@@ -96,6 +115,7 @@ def parse_iso8601(timestamp):
     return(tupple_time)
 
 def fetch_solar_data():
+    wdt.feed() # feed the watchdog
     try:
         # Make GET request
         response = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&daily=sunrise,sunset&past_days=1&forecast_days=2", timeout=10)
@@ -114,6 +134,7 @@ def fetch_solar_data():
     
 def update_solar_data():
     global prior_sunset, sunrise, sunset, next_sunrise, past_sunset_epoch, sunrise_epoch, sunset_epoch, next_sunrise_epoch
+    wdt.feed() # feed the watchdog
     try:
         solar = fetch_solar_data()
         if solar is not None:
@@ -184,6 +205,7 @@ def save_config():
         print("Error saving config:", e)
 
 def fetch_address(url):
+    wdt.feed() # feed the watchdog
     try:
         # Make GET request
         response = requests.get(url, timeout=10)
@@ -201,6 +223,7 @@ def fetch_address(url):
         return None
 
 def fetch_location_from_address(address):
+    wdt.feed() # feed the watchdog
     try:
         headers = {
             "User-Agent": "rp2"  # Add a custom user agent
@@ -257,13 +280,16 @@ def calculate_toki(prior_sunset_epoch, sunrise_epoch, sunset_epoch, next_sunrise
 
 def check_button(toki_angle):
     if button.value() == 0:
+        wdt.feed() # feed the watchdog
         print('Button pressed, returning to angle 0')
         stepper_control.on()
         time.sleep(STEPPER_DELAY)
         stepper_motor.step_until_angle(0)
+        wdt.feed() # feed the watchdog
         time.sleep(2)
         print('Entering manual adjustment mode. Hold button to rotate clockwise.')
         while button.value() == 0:
+            wdt.feed() # feed the watchdog
             # Move stepper 1 degree at a time while button is held
             stepper_motor.step(34)
             time.sleep(0.1)
@@ -272,37 +298,10 @@ def check_button(toki_angle):
         time.sleep(1)
         print(f"Toki Angle: {toki_angle:.2f} degrees")
         # Move stepper motor to Toki angle
+        wdt.feed() # feed the watchdog
         stepper_motor.step_until_angle(toki_angle)
         time.sleep(STEPPER_DELAY)
         stepper_control.off()
-
-
-def stepper_test():
-    pass
-    #     print('500 clockwise steps')
-    #     #Move 500 steps in clockwise direction
-    #     stepper_motor.step(500)
-    #     sleep(0.5) # stop for a while
-        
-    #     print('500 counterclockwise steps')
-    #     # Move 500 steps in counterclockwise direction
-    #     stepper_motor.step(-500)
-    #     sleep(0.5) # stop for a while
-        
-    #     print('Go to position 2000')
-    #     # Go to a specific position (in steps)
-    #     stepper_motor.step_until(2000)
-    #     sleep(0.5) # stop for a while
-        
-    #     print('Forcce direction to counterclockwise and go to position 2000')
-    #     # Force a direction using the dir paramter
-    #     stepper_motor.step_until(2000, dir=-1)
-    #     sleep(0.5) # stop for a while        
-        
-    #     print('Go to angle 359')
-    #     # Go to a specific position (angle, maximum is 359, otherwise it will spin indefinetely)
-    #     stepper_motor.step_until_angle(359)
-    #     sleep(0.5) # stop for a while
 
 next_ntp_sync, next_solar_sync = 0, 0
 past_sunset_epoch, sunrise_epoch, sunset_epoch, next_sunrise_epoch, current_epoch = 0, 0, 0, 0, 0
@@ -322,15 +321,17 @@ def main():
     while not ntp_set:
         try:
             print('Syncing time via NTP...')
+            wdt.feed() # feed the watchdog
             ntptime.settime()
             print(f"System time updated to {formatted_time(time.localtime())} via NTP.")
             next_ntp_sync = time.time() + 43200 # update every 12 hours
             ntp_set = True
         except Exception as e:
             print("Failed to update time via NTP.", e)
-            print('Retrying in 10 seconds...')
-            time.sleep(10)
+            print('Retrying in 5 seconds...')
+            time.sleep(5)
     while True:
+        wdt.feed() # feed the watchdog
         blink_led(2, 0.1)
         if not connection:
             break # exit if no connection
@@ -368,6 +369,7 @@ def main():
         print('Sleeping for 60 seconds before next update...')
         start_time = time.time()
         while (time.time() - start_time) < 60:
+            wdt.feed() # feed the watchdog
             check_button(toki_angle)
             time.sleep(0.1)
 
@@ -378,6 +380,7 @@ if __name__ == "__main__":
     except Exception as e:
         print('Error occurred: ', e)
     except KeyboardInterrupt:
+        wdt.feed() # feed the watchdog
         print('Returning to angle 0')
         stepper_control.on()
         time.sleep(STEPPER_DELAY)

@@ -1,10 +1,12 @@
 # Rui Santos & Sara Santos - Random Nerd Tutorials
 # Complete project details at https://RandomNerdTutorials.com/raspberry-pi-pico-stepper-motor-micropython/
 # Forked from: https://github.com/larsks/micropython-stepper-motor/blob/master/motor.py
+# Modified by Rob Faludi for single coil motor support
 
 import machine
 import time
 
+version = "1.1"
 class Motor:
     stepms = 10
 
@@ -88,7 +90,7 @@ class Motor:
 
         steps_to_take = int(degrees / 360 * self.maxpos)
 
-        self.zero()  # Ignore the current position, start from zero
+        # self.zero()  # Ignore the current position, start from zero
         self.step(steps_to_take)
 
 class FullStepMotor(Motor):
@@ -114,4 +116,14 @@ class HalfStepMotor(Motor):
         [0, 0, 1, 1],
         [0, 0, 0, 1],
         [1, 0, 0, 1],
+    ]
+
+class SingleCoilMotor(Motor):
+    stepms = 10
+    maxpos = 2048
+    states = [
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 1],
     ]
