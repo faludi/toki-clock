@@ -11,7 +11,7 @@ from machine import WDT
 
 wdt = WDT(timeout=8388)  # enable it with maximum timeout for the Pico
 
-version = "1.0.11"
+version = "1.0.12"
 print("Toki Clock - Version:", version)
 
 # Wi-Fi credentials
@@ -21,7 +21,7 @@ password = secrets.WIFI_PASSWORD  # your WiFi password stored in secrets.py
 LED = Pin("LED", Pin.OUT)      # digital output for status LED
 button = Pin(15, Pin.IN, Pin.PULL_UP)  # onboard button
 stepper_control = Pin(0, Pin.OUT)  # stepper motor control pin
-STEPPER_DELAY = 0 # pause to allow power to stabilize
+STEPPER_DELAY = 0.1 # pause to allow power to stabilize
 
 # Define stepper motor pins
 IN1 = 28
@@ -282,7 +282,7 @@ def check_button(toki_angle):
     if button.value() == 0:
         wdt.feed() # feed the watchdog
         print('Button pressed, returning to angle 0')
-        stepper_control.on()
+        stepper_on()
         time.sleep(STEPPER_DELAY)
         stepper_motor.step_until_angle(0)
         wdt.feed() # feed the watchdog
@@ -301,7 +301,13 @@ def check_button(toki_angle):
         wdt.feed() # feed the watchdog
         stepper_motor.step_until_angle(toki_angle)
         time.sleep(STEPPER_DELAY)
-        stepper_control.off()
+        stepper_off()
+
+def stepper_off():
+    stepper_control.on()
+
+def stepper_on():
+    stepper_control.off()
 
 next_ntp_sync, next_solar_sync = 0, 0
 past_sunset_epoch, sunrise_epoch, sunset_epoch, next_sunrise_epoch, current_epoch = 0, 0, 0, 0, 0
@@ -361,11 +367,11 @@ def main():
         toki_angle, toki_hour = calculate_toki(past_sunset_epoch, sunrise_epoch, sunset_epoch, next_sunrise_epoch, current_epoch)
         print(f"Toki Angle: {toki_angle:.2f} degrees, Toki Hour: {toki_hour}")
         # Move stepper motor to Toki angle
-        stepper_control.on()
+        stepper_on()
         time.sleep(STEPPER_DELAY)
         stepper_motor.step_until_angle(toki_angle)
         time.sleep(STEPPER_DELAY)
-        stepper_control.off()
+        stepper_off()
         print('Sleeping for 60 seconds before next update...')
         start_time = time.time()
         while (time.time() - start_time) < 60:
@@ -382,11 +388,11 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         wdt.feed() # feed the watchdog
         print('Returning to angle 0')
-        stepper_control.on()
+        stepper_on()
         time.sleep(STEPPER_DELAY)
         stepper_motor.step_until_angle(0)
         time.sleep(STEPPER_DELAY)
-        stepper_control.off()
+        stepper_off()
         print('Program Interrupted by the user')
 
      
