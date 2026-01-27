@@ -7,11 +7,12 @@ import json
 import requests
 import secrets  # separate file that contains your WiFi credentials
 import stepper
-from machine import WDT
+from machine import WDT, lightsleep
 
+time.sleep(2) # brief pause to allow connections before WDT starts
 wdt = WDT(timeout=8388)  # enable it with maximum timeout for the Pico
 
-version = "1.0.12"
+version = "1.0.14"
 print("Toki Clock - Version:", version)
 
 # Wi-Fi credentials
@@ -292,7 +293,7 @@ def check_button(toki_angle):
             wdt.feed() # feed the watchdog
             # Move stepper 1 degree at a time while button is held
             stepper_motor.step(34)
-            time.sleep(0.1)
+            time.sleep(0.2)
         print('Exiting manual adjustment mode.')
         stepper_motor.reset()
         time.sleep(1)
@@ -377,7 +378,7 @@ def main():
         while (time.time() - start_time) < 60:
             wdt.feed() # feed the watchdog
             check_button(toki_angle)
-            time.sleep(0.1)
+            lightsleep(200)
 
 if __name__ == "__main__":
     try:
