@@ -7,12 +7,12 @@ import json
 import requests
 import secrets  # separate file that contains your WiFi credentials
 import stepper
-from machine import WDT, lightsleep
+from machine import WDT
 
 time.sleep(2) # brief pause to allow connections before WDT starts
 wdt = WDT(timeout=8388)  # enable it with maximum timeout for the Pico
 
-version = "1.0.14"
+version = "1.0.15"
 print("Toki Clock - Version:", version)
 
 # Wi-Fi credentials
@@ -57,6 +57,7 @@ longitude = -73.9881643
 settings_file_url = "http://shinyshape.com/tokiclock/toki_clock_settings.json"
 
 def connect_to_wifi():
+    global wlan
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
     # Connect to network
@@ -80,6 +81,14 @@ def connect_to_wifi():
         network_info = wlan.ifconfig()
         print('IP address:', network_info[0])
         return True
+    
+def connect_wifi_retries(retries=10):
+    for attempt in range(retries):
+        if connect_to_wifi():
+            return True
+        print(f'Retry {attempt + 1} of {retries}...')
+        time.sleep(2)
+    return False
 
 def formatted_time(lt):
     return(f"UTC: {lt[0]:04d}-{lt[1]:02d}-{lt[2]:02d} {lt[3]:02d}:{lt[4]:02d}:{lt[5]:02d}")
@@ -310,20 +319,13 @@ def stepper_off():
 def stepper_on():
     stepper_control.off()
 
-next_ntp_sync, next_solar_sync = 0, 0
+next_sync = 0
 past_sunset_epoch, sunrise_epoch, sunset_epoch, next_sunrise_epoch, current_epoch = 0, 0, 0, 0, 0
 
 def main():
-    global next_ntp_sync, next_solar_sync, address, latitude, longitude, settings_file_url
-    connection = False
-    connection_timeout = 10
+    global next_sync, address, latitude, longitude, settings_file_url
     blink_led(3, 0.1)
-    while not connection:
-            connection = connect_to_wifi()
-            connection_timeout -= 1
-            if connection_timeout == 0:
-                print('Could not connect to Wi-Fi, exiting')
-                reset()
+    connect_wifi_retries(10)
     ntp_set = False
     while not ntp_set:
         try:
@@ -331,7 +333,6 @@ def main():
             wdt.feed() # feed the watchdog
             ntptime.settime()
             print(f"System time updated to {formatted_time(time.localtime())} via NTP.")
-            next_ntp_sync = time.time() + 43200 # update every 12 hours
             ntp_set = True
         except Exception as e:
             print("Failed to update time via NTP.", e)
@@ -340,28 +341,26 @@ def main():
     while True:
         wdt.feed() # feed the watchdog
         blink_led(2, 0.1)
-        if not connection:
-            break # exit if no connection
-        # Sync time via NTP immediately, then every 12 hours
-        if (time.time() >= next_ntp_sync):
+        # Sync time via NTP and solar data immediately, then every 12 hours
+        if (time.time() >= next_sync):
+            if wlan.status() != 3:
+                print('Wi-Fi not connected, attempting to reconnect...')
+                connect_wifi_retries(10)
             try:
                 print('Syncing time via NTP...')
+                wdt.feed() # feed the watchdog
                 ntptime.settime()
                 print(f"System time updated to {formatted_time(time.localtime())} via NTP.")
-                next_ntp_sync = time.time() + 43200 # update every 12 hours
-            except Exception as e:
-                last_ntp_sync = time.time()
-                next_ntp_sync = time.time() + 600  # try again in 10 minutes
-                print("Failed to update time via NTP.", e)
-        # Fetch solar data immediately, then every 12 hours
-        if (time.time() >= next_solar_sync):
-            try:
                 print('Fetching solar data...')
+                wdt.feed() # feed the watchdog
                 update_solar_data()
-                next_solar_sync = time.time() + 43200  # update every 12 hours
+                print('Solar data updated.')
+                next_sync = time.time() + 43200 # update every 12 hours
             except Exception as e:
-                next_solar_sync = time.time() + 600  # try again in 10 minutes
-                print("Failed to update time via NTP.", e)
+                next_sync = time.time() 600  # try again in 10 minutes
+                print("Failed to update NTP or solar data, retrying in 10 minutes.", e)
+            wlan.disconnect()
+            wlan.active(False)
         # Calculate Toki angle
         current_epoch = time.time()
         print('Current epoch time:', current_epoch)
@@ -378,7 +377,7 @@ def main():
         while (time.time() - start_time) < 60:
             wdt.feed() # feed the watchdog
             check_button(toki_angle)
-            lightsleep(200)
+            time.sleep(0.1)
 
 if __name__ == "__main__":
     try:
