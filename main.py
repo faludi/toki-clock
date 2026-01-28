@@ -374,7 +374,7 @@ def main():
         stepper_off()
         print('Sleeping for 60 seconds before next update...')
         start_time = time.time()
-        while (time.time() - start_time) < 60:
+        while (time.time() - start_time) < 120:
             wdt.feed() # feed the watchdog
             check_button(toki_angle)
             time.sleep(0.1)
