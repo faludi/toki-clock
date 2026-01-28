@@ -12,7 +12,7 @@ from machine import WDT
 time.sleep(2) # brief pause to allow connections before WDT starts
 wdt = WDT(timeout=8388)  # enable it with maximum timeout for the Pico
 
-version = "1.0.15"
+version = "1.0.16"
 print("Toki Clock - Version:", version)
 
 # Wi-Fi credentials
@@ -372,12 +372,12 @@ def main():
         stepper_motor.step_until_angle(toki_angle)
         time.sleep(STEPPER_DELAY)
         stepper_off()
-        print('Sleeping for 60 seconds before next update...')
+        print('Sleeping for 2 minutes before next update...')
         start_time = time.time()
         while (time.time() - start_time) < 120:
             wdt.feed() # feed the watchdog
             check_button(toki_angle)
-            time.sleep(0.1)
+            time.sleep(0.2)
 
 if __name__ == "__main__":
     try:
