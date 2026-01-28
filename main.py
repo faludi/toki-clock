@@ -357,7 +357,7 @@ def main():
                 print('Solar data updated.')
                 next_sync = time.time() + 43200 # update every 12 hours
             except Exception as e:
-                next_sync = time.time()  # try again in 10 minutes
+                next_sync = time.time() + 600 # try again in 10 minutes
                 print("Failed to update NTP or solar data, retrying in 10 minutes.", e)
             wlan.disconnect()
             wlan.active(False)
